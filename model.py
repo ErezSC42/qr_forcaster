@@ -1,3 +1,4 @@
+
 import torch
 from torch import nn
 
@@ -44,8 +45,7 @@ class DecoderGlobal(nn.Module):
         self.mlp = nn.Linear(in_features=self.input_dim, out_features=self.output_dim)
 
     def forward(self, x):
-        x = self.mlp(x)
-        # TODO add activation and check dims
+        x = torch.nn.functional.relu(self.mlp(x))
         return x
 
 
@@ -67,9 +67,13 @@ class DecoderLocal(nn.Module):
         self.output_dim = quantiles_num  # each local decoder outputs q values
         self.mlp = nn.Linear(in_features=self.input_dim, out_features=self.output_dim)
 
-    def forward(self, x):
-        x = self.mlp(x)
-        # TODO add activation and check dims
+    def forward(self, context_vector, context_alpha_vector , x_future_data=None):
+        if x_future_data:
+            vec_list = [context_vector, context_alpha_vector, x_future_data]
+        else:
+            vec_list = [context_vector, context_alpha_vector]
+        x = torch.cat(vec_list, dim=1)
+        x = torch.nn.functional.relu(self.mlp(x))
         return x
 
 
@@ -98,6 +102,7 @@ class ForecasterQR(nn.Module):
 
         self.horizons = horizons
         self.quantiles = quantiles
+        self.context_dim = decoder_context_dim
         self.q = len(self.quantiles)
 
         # TODO correctly init decoders
@@ -126,11 +131,13 @@ class ForecasterQR(nn.Module):
         global_state = self.global_decoder(encoded_hidden_state)
 
         # init output tensor in [batch_size, horizons, quantiles]
-        output_tensor = torch.Tensor([batch_size, self.horizons, self.q])
+        output_tensor = torch.zeros([batch_size, self.horizons, self.q])
 
         # use local decoder k times to get the quantile outputs foreach horizon
         for k in range(self.horizons):
             # take the correct elements from the global_state vector, matching the current k
-            output_tensor[:, k, :] = self.local_decoder(global_state, x_future_tensor)
+            c_alpha = global_state[:, -self.context_dim:]  # get c_alpha
+            c_t_k = global_state[:, k * self.context_dim:(k + 1) * self.context_dim]
+            output_tensor[:, k, :] = self.local_decoder(c_t_k, c_alpha, x_future_tensor).unsqueeze(dim=1)
 
         return output_tensor
