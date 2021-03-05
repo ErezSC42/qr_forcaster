@@ -10,9 +10,10 @@ def el_resample(df):
 
 class ElDataset(Dataset):
     """Electricity dataset."""
-    #TODO add calendaric features
 
-    def __init__(self, df, num_samples, hist_hours=168, future_hours=24):
+    # TODO add calendaric features
+
+    def __init__(self, df, num_samples, hist_hours=168, future_hours=24, device='cpu'):
         """
         Args:
             df: original electricity data (see HW intro for details).
@@ -23,6 +24,7 @@ class ElDataset(Dataset):
         self.hist_hours = hist_hours
         self.future_hours = future_hours
         self.full_length = pd.Timedelta(hours=(hist_hours + future_hours))
+        self.device = device
         self.sample()
 
     def __len__(self):
@@ -38,8 +40,9 @@ class ElDataset(Dataset):
         future_start = hist_end + pd.Timedelta(hours=1)
         future_end = hist_end + pd.Timedelta(hours=self.future_hours)
 
-        return (torch.Tensor(self.raw_data.loc[hist_start:hist_end, household].values),
-                torch.Tensor(self.raw_data.loc[future_start:future_end, household].values))
+        return (torch.Tensor(self.raw_data.loc[hist_start:hist_end, household].values, device=self.device),
+                torch.Tensor(self.raw_data.loc[future_start:future_end, household].values, device=self.device))
+    #TODO add static,seasunal features
 
     def get_mapping(self, idx):
         """Mapping between dataset index `idx` and actual `(household, start_ts)` pair."""

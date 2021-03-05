@@ -19,12 +19,13 @@ class QuantileLoss(Module):
         self.quantiles = quantiles
 
     def forward(self, preds, target):
-        '''Predictions: tensor of shape (num_horizons, num_quantiles)'''
+        """preds: tensor of shape (batch, num_horizons, num_quantiles)
+        target: tensor of shape (batch, num_horizons"""
         assert not target.requires_grad
         assert preds.size(0) == target.size(0)
         losses = []
         for i, q in enumerate(self.quantiles):
-            errors = target - preds[:, i]
+            errors = target - preds[:, :, i]
             losses.append(
                 torch.max(
                     (q - 1) * errors,
@@ -33,3 +34,10 @@ class QuantileLoss(Module):
         loss = torch.mean(
             torch.sum(torch.cat(losses, dim=1), dim=1))
         return loss
+
+
+# l = QuantileLoss(torch.tensor([1, 2, 3.]))
+#
+# num_q = 3
+# num_horizons = 5
+# l0 = l(preds=torch.zeros([32, num_horizons, num_q]), target=torch.zeros([32, num_horizons]))
