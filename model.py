@@ -1,9 +1,13 @@
 
 import torch
 from torch import nn
+from typing import List
+import pytorch_lightning as pl
+
+from qr_forcaster.Metrits.Losses import QuantileLoss
 
 
-class Encoder(nn.Module):
+class Encoder(pl.LightningModule):
     '''
     Encoder module for timeseries. creates encoded representation of input sequence using LSTM
     '''
@@ -28,7 +32,7 @@ class Encoder(nn.Module):
         return henc[:, 0, :], cenc[:, 0, :]  # returns encoded state [batch_size, hidden_dim]
 
 
-class DecoderGlobal(nn.Module):
+class DecoderGlobal(pl.LightningModule):
     '''
     Global decoder for output of encoder LSTM. single instance in full model
     '''
@@ -49,7 +53,7 @@ class DecoderGlobal(nn.Module):
         return x
 
 
-class DecoderLocal(nn.Module):
+class DecoderLocal(pl.LightningModule):
     '''
     Local decoder for quantile prediction of specific timestep.
     parameters are shared between timestamps, meaning there is a single local decoder in the network
@@ -59,7 +63,7 @@ class DecoderLocal(nn.Module):
             self,
             context_dim,
             future_data_dim: int,
-            quantiles: int,
+            quantiles: List[float],
     ):
         super(DecoderLocal, self).__init__()
         self.input_dim = 2 * context_dim + future_data_dim  # local context, global context and future data
@@ -77,7 +81,7 @@ class DecoderLocal(nn.Module):
         return x
 
 
-class ForecasterQR(nn.Module):
+class ForecasterQR(pl.LightningModule):
     '''
     Full class of forecaster module
     '''
@@ -90,7 +94,7 @@ class ForecasterQR(nn.Module):
             encoder_hidden_dim: int,
             encoder_num_layers: int,
             decoder_context_dim: int,
-            quantiles: int,
+            quantiles: List[float],
             horizons: int,
     ):
         super(ForecasterQR, self).__init__()
@@ -104,6 +108,7 @@ class ForecasterQR(nn.Module):
         self.quantiles = quantiles
         self.context_dim = decoder_context_dim
         self.q = len(self.quantiles)
+        self.loss = QuantileLoss(quantiles)
 
         # TODO correctly init decoders
         self.global_decoder = DecoderGlobal(encoder_hidden_dim=encoder_hidden_dim,
@@ -141,3 +146,20 @@ class ForecasterQR(nn.Module):
             output_tensor[:, k, :] = self.local_decoder(c_t_k, c_alpha, x_future_tensor).unsqueeze(dim=1)
 
         return output_tensor
+
+    def training_step(self, train_batch, batch_idx):
+        x, y = train_batch
+        pred = self(x)
+        loss = self.loss(pred, y)
+        self.log('train_loss', loss)
+        return loss
+
+    def validation_step(self, val_batch, batch_idx):
+        x, y = val_batch
+        pred = self(x)
+        loss = self.loss(pred, y)
+        self.log('val_loss', loss)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer

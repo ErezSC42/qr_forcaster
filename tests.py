@@ -6,7 +6,7 @@ from MyDataset import ElDataset
 DATA_PATH = os.path.join("data", "LD2011_2014.txt")
 
 if __name__ == '__main__':
-    samples = 1
+    num_samples = 2
     hist_hours = 168
     pred_horizon = 24
     # load data
@@ -16,7 +16,7 @@ if __name__ == '__main__':
                      decimal=",")
     df.rename({"Unnamed: 0": "timestamp"}, axis=1, inplace=True)
 
-    el_dataset = ElDataset(df=df, samples=samples, hist_hours=hist_hours, future_hours=pred_horizon)
+    el_dataset = ElDataset(df=df, num_samples=num_samples, hist_hours=hist_hours, future_hours=pred_horizon)
 
     quantiles = [.1, .2, .3, .4, .5, .6, .7, .8, .9, .95]
 
