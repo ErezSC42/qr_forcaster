@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 
@@ -12,7 +13,7 @@ class Encoder(nn.Module):
             hidden_dim: int,
             num_layers: int,
             max_sequence_len: int):
-        super(Encoder).__init__()
+        super(Encoder, self).__init__()
         self.data_dim = data_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
@@ -37,7 +38,7 @@ class DecoderGlobal(nn.Module):
             context_dim: int,
             x_future_dim: int,
             k: int):
-        super(DecoderGlobal).__init__()
+        super(DecoderGlobal, self).__init__()
         self.input_dim = encoder_hidden_dim + k * x_future_dim  # the dimension of the input data
         self.output_dim = (k + 1) * context_dim  # k local contexts and global context
         self.mlp = nn.Linear(in_features=self.input_dim, out_features=self.output_dim)
@@ -50,17 +51,19 @@ class DecoderGlobal(nn.Module):
 
 class DecoderLocal(nn.Module):
     '''
-    Local decoder for quantile prediction of specific timestep. Instance a local encoder for each horizon dim.
+    Local decoder for quantile prediction of specific timestep.
+    parameters are shared between timestamps, meaning there is a single local decoder in the network
     '''
 
     def __init__(
             self,
             context_dim,
             future_data_dim: int,
-            quantiles_num: int,
+            quantiles: int,
     ):
-        super(DecoderLocal).__init__()
+        super(DecoderLocal, self).__init__()
         self.input_dim = 2 * context_dim + future_data_dim  # local context, global context and future data
+        quantiles_num = len(quantiles)
         self.output_dim = quantiles_num  # each local decoder outputs q values
         self.mlp = nn.Linear(in_features=self.input_dim, out_features=self.output_dim)
 
@@ -93,6 +96,10 @@ class ForecasterQR(nn.Module):
             num_layers=encoder_num_layers,
             max_sequence_len=input_max_squence_len)
 
+        self.horizons = horizons
+        self.quantiles = quantiles
+        self.q = len(self.quantiles)
+
         # TODO correctly init decoders
         self.global_decoder = DecoderGlobal(encoder_hidden_dim=encoder_hidden_dim,
                                             context_dim=decoder_context_dim,
@@ -100,9 +107,30 @@ class ForecasterQR(nn.Module):
                                             k=horizons)
 
         # create a local decoder foreach output step
-        self.local_decoders = [DecoderLocal(context_dim=decoder_context_dim,
-                                            future_data_dim=x_dim,
-                                            quantiles_num=quantiles) for _ in range(horizons)]
+        self.local_decoder = DecoderLocal(context_dim=decoder_context_dim,
+                                          future_data_dim=x_dim, quantiles=quantiles)
 
-    def forward(self, x):
-        pass
+    def forward(self, y_tensor, x_tensor=None, x_future_tensor=None):
+        '''
+        :param y_tensor: time series data of past
+        :param x_tensor: feature/calender data of the past
+        :param x_future_tensor: feature/calaender data of the future
+        :return:
+        '''
+        batch_size = y_tensor.shape[0]
+        if x_tensor:
+            past_vector = torch.cat([y_tensor, x_tensor], axis=1)
+        else:
+            past_vector = y_tensor
+        encoded_hidden_state, _ = self.encoder(past_vector)
+        global_state = self.global_decoder(encoded_hidden_state)
+
+        # init output tensor in [batch_size, horizons, quantiles]
+        output_tensor = torch.Tensor([batch_size, self.horizons, self.q])
+
+        # use local decoder k times to get the quantile outputs foreach horizon
+        for k in range(self.horizons):
+            # take the correct elements from the global_state vector, matching the current k
+            output_tensor[:, k, :] = self.local_decoder(global_state, x_future_tensor)
+
+        return output_tensor
