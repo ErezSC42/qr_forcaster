@@ -4,8 +4,8 @@ import pytorch_lightning as pl
 import torch
 from torch import nn
 
-from qr_forcaster.DatasetHandler import DatasetHandler
-from qr_forcaster.model import ForecasterQR
+from DatasetHandler import DatasetHandler
+from model import ForecasterQR
 
 data_path = os.path.join("data", "LD2011_2014.txt")
 
