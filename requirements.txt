@@ -76,3 +76,4 @@ urllib3==1.25.8
 wcwidth==0.2.5
 webencodings==0.5.1
 widgetsnbextension==3.5.1
+pytorch-lightning=1.2.1
