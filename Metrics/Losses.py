@@ -1,14 +1,5 @@
 import torch
-from torch.nn import functional as F, Module
-
-
-class DummyLoss:
-    def __init__(self):
-        pass
-
-    def calc_loss(self, pred, y):  # placeholder
-        loss = F.mse_loss(pred, y)
-        return loss
+from torch.nn import Module
 
 
 class QuantileLoss(Module):
@@ -34,10 +25,3 @@ class QuantileLoss(Module):
         loss = torch.mean(
             torch.sum(torch.cat(losses, dim=1), dim=1))
         return loss
-
-
-# l = QuantileLoss(torch.tensor([1, 2, 3.]))
-#
-# num_q = 3
-# num_horizons = 5
-# l0 = l(preds=torch.zeros([32, num_horizons, num_q]), target=torch.zeros([32, num_horizons]))
