@@ -4,7 +4,7 @@ from torch import nn
 from typing import List
 import pytorch_lightning as pl
 
-from qr_forcaster.Metrits.Losses import QuantileLoss
+from qr_forcaster.Metrics.Losses import QuantileLoss
 
 
 class Encoder(pl.LightningModule):
@@ -27,7 +27,7 @@ class Encoder(pl.LightningModule):
                                     num_layers=num_layers)
 
     def forward(self, x):
-        # TODO returm all the states or only the last
+        # TODO return all the states or only the last
         output, (henc, cenc) = self.encoder_lstm(x.view(x.shape[0], x.shape[1], 1))
         return henc[:, 0, :], cenc[:, 0, :]  # returns encoded state [batch_size, hidden_dim]
 
@@ -96,6 +96,7 @@ class ForecasterQR(pl.LightningModule):
             decoder_context_dim: int,
             quantiles: List[float],
             horizons: int,
+            device: str
     ):
         super(ForecasterQR, self).__init__()
         self.encoder = Encoder(
@@ -108,7 +109,8 @@ class ForecasterQR(pl.LightningModule):
         self.quantiles = quantiles
         self.context_dim = decoder_context_dim
         self.q = len(self.quantiles)
-        self.loss = QuantileLoss(quantiles)
+        self.device_ = device
+        self.loss = QuantileLoss(quantiles, device=self.device_)
 
         # TODO correctly init decoders
         self.global_decoder = DecoderGlobal(encoder_hidden_dim=encoder_hidden_dim,

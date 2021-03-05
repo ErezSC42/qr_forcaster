@@ -5,13 +5,16 @@ from torch.nn import Module
 class QuantileLoss(Module):
     '''source: https://medium.com/the-artificial-impostor/quantile-regression-part-2-6fdbc26b2629'''
 
-    def __init__(self, quantiles):
+    def __init__(self, quantiles, device):
         super().__init__()
         self.quantiles = quantiles
+        self.device = device
 
     def forward(self, preds, target):
         """preds: tensor of shape (batch, num_horizons, num_quantiles)
         target: tensor of shape (batch, num_horizons"""
+        if self.device == "gpu":
+            preds = preds.to("cuda")
         assert not target.requires_grad
         assert preds.size(0) == target.size(0)
         losses = []
