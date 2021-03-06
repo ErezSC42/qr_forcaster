@@ -3,11 +3,8 @@ import pickle
 import random
 import datetime
 import numpy as np
-import torch
-import pytorch_lightning as pl
-import matplotlib.pyplot as plt
-from DatasetHandler import DatasetHandler
 from model import ForecasterQR
+import matplotlib.pyplot as plt
 
 data_path = os.path.join("data", "LD2011_2014.txt")
 
@@ -38,13 +35,16 @@ def plot_prediction(start_ts, household, model_output, y_past, y_future):
     plt.title(f"Consumption prediction for household {household}")
     plt.plot(past_ts_index, y_past.squeeze(), label="past consumption")
     plt.plot(future_ts_index, y_future, label="actual consumption")
-    plt.plot(future_ts_index, res[:, 5], label="median prediction")
+    plt.plot(future_ts_index, res[:, half], label="median prediction")
     for i in range(half):
-        alph = 0.05 + 0.5 * (i / len(model.quantiles))
+        alph = 0.05 + (i / len(model.quantiles))
         plt.fill_between(future_ts_index, res[:, i], res[:, -(i + 1)],
                          color="g", alpha=alph)
     fig.autofmt_xdate(bottom=0.2, rotation=30, ha='right')
-    plt.legend()
+    plt.legend(loc="upper left")
+    plt.xlabel("time")
+    plt.ylabel("consumption (MW)")
+    plt.grid()
     plt.tight_layout()
     plt.show()
 

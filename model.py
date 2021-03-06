@@ -140,7 +140,8 @@ class ForecasterQR(pl.LightningModule):
 
         torch.cat([encoded_hidden_state, x_future_tensor.view(batch_size, -1)], axis=-1)
 
-        global_state = self.global_decoder(torch.cat([encoded_hidden_state, x_future_tensor.view(batch_size, -1)], axis=-1))
+        global_state = self.global_decoder(
+            torch.cat([encoded_hidden_state, x_future_tensor.view(batch_size, -1)], axis=-1))
 
         # init output tensor in [batch_size, horizons, quantiles]
         output_tensor = torch.zeros([batch_size, self.horizons, self.q])
@@ -166,15 +167,15 @@ class ForecasterQR(pl.LightningModule):
         pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
         self.log('val_loss', loss, on_step=False, on_epoch=True)
-        self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True) #todo check it
-
-
+        self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True)  # todo check it
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         scheduler = \
             {
-                'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.9, patience=2, threshold=0.0001, cooldown=0, min_lr=1e-7, eps=1e-08),
+                'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.9, patience=2,
+                                                                        threshold=0.0001, cooldown=0, min_lr=1e-7,
+                                                                        eps=1e-08),
                 'monitor': 'val_loss',
                 'interval': 'epoch',
                 'frequency': 1
