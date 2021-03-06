@@ -4,10 +4,6 @@ import pandas as pd
 from torch.utils.data import Dataset
 
 
-def el_resample(df):
-    return df.resample("1H", on="timestamp").mean().reset_index()
-
-
 class ElDataset(Dataset):
     """Electricity dataset."""
 
@@ -19,7 +15,7 @@ class ElDataset(Dataset):
             df: original electricity data (see HW intro for details).
             samples (int): number of sample to take per household.
         """
-        self.raw_data = el_resample(df).set_index("timestamp")
+        self.raw_data = self.el_resample(df).set_index("timestamp")
         self.num_samples = num_samples
         self.hist_hours = hist_hours
         self.future_hours = future_hours
@@ -39,9 +35,26 @@ class ElDataset(Dataset):
         future_start = hist_end + pd.Timedelta(hours=1)
         future_end = hist_end + pd.Timedelta(hours=self.future_hours)
 
-        x = torch.Tensor(self.raw_data.loc[hist_start:hist_end, household].values)
+        x_data = torch.Tensor(self.raw_data.loc[hist_start:hist_end, household].values).unsqueeze(-1)
+        x_calendar_past = torch.stack(
+            [
+                torch.Tensor(self.raw_data.loc[hist_start:hist_end, "yearly_cycle"].values),
+                torch.Tensor(self.raw_data.loc[hist_start:hist_end, "weekly_cycle"].values),
+                torch.Tensor(self.raw_data.loc[hist_start:hist_end, "daily_cycle"].values),
+            ],
+            axis=-1
+        )
+        x_calendar_future = torch.stack(
+            [
+                torch.Tensor(self.raw_data.loc[future_start:future_end, "yearly_cycle"].values),
+                torch.Tensor(self.raw_data.loc[future_start:future_end, "weekly_cycle"].values),
+                torch.Tensor(self.raw_data.loc[future_start:future_end, "daily_cycle"].values),
+            ],
+            axis=-1
+        )
         y = torch.Tensor(self.raw_data.loc[future_start:future_end, household].values)
-        return x, y
+
+        return (x_data, x_calendar_past, x_calendar_future), y
 
     # TODO add static,seasunal features
 
@@ -52,7 +65,7 @@ class ElDataset(Dataset):
     def sample(self):
         """
         Create sampling. Note that we shuffle `idx`, otherwise we would yield households in batches,
-        i. e. `self.samples` samples from `MT_001` first, then `self.samples` samples from `MT_002`, and so on.
+        i.e., `self.samples` samples from `MT_001` first, then `self.samples` samples from `MT_002`, and so on.
         """
 
         self.mapping = {}
@@ -68,3 +81,14 @@ class ElDataset(Dataset):
             pairs.extend([(household, sts) for sts in start_ts])
 
         self.mapping = {idx[i]: pairs[i] for i in range(len(idx))}
+
+        self.create_calender_features()
+
+    def create_calender_features(self):
+        self.raw_data["yearly_cycle"] = np.sin(2 * np.pi * self.raw_data.index.dayofyear / 366)
+        self.raw_data["weekly_cycle"] = np.sin(2 * np.pi * self.raw_data.index.dayofweek / 7)
+        self.raw_data["daily_cycle"] = np.sin(2 * np.pi * self.raw_data.index.hour / 24)
+        self.calendar_features = ["yearly_cycle", "weekly_cycle", "daily_cycle"]
+
+    def el_resample(self, df):
+        return df.resample("1H", on="timestamp").mean().reset_index()

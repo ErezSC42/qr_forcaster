@@ -1,7 +1,7 @@
 import pandas as pd
 from torch.utils.data import DataLoader
 
-from MyDataset import ElDataset
+from qr_forcaster.ElDataset import ElDataset
 
 
 class DatasetHandler:

@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from model import Encoder, ForecasterQR
-from MyDataset import ElDataset
+from ElDataset import ElDataset
 
 DATA_PATH = os.path.join("data", "LD2011_2014.txt")
 

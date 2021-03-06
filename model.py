@@ -1,8 +1,8 @@
+from typing import List
 
+import pytorch_lightning as pl
 import torch
 from torch import nn
-from typing import List
-import pytorch_lightning as pl
 
 from Metrics.Losses import QuantileLoss
 
@@ -28,7 +28,8 @@ class Encoder(pl.LightningModule):
 
     def forward(self, x):
         # TODO return all the states or only the last
-        output, (henc, cenc) = self.encoder_lstm(x.view(x.shape[0], x.shape[1], 1))
+        output, (henc, cenc) = self.encoder_lstm(x)  # expects batch, sequence_len, feature_size
+        # output, (henc, cenc) = self.encoder_lstm(x.view(x.shape[0], x.shape[1], 1)) #expects batch, sequence_len, feature_size
         return henc[:, 0, :], cenc[:, 0, :]  # returns encoded state [batch_size, hidden_dim]
 
 
@@ -71,7 +72,7 @@ class DecoderLocal(pl.LightningModule):
         self.output_dim = quantiles_num  # each local decoder outputs q values
         self.mlp = nn.Linear(in_features=self.input_dim, out_features=self.output_dim)
 
-    def forward(self, context_vector, context_alpha_vector , x_future_data=None):
+    def forward(self, context_vector, context_alpha_vector, x_future_data=None):
         if x_future_data:
             vec_list = [context_vector, context_alpha_vector, x_future_data]
         else:
@@ -126,12 +127,12 @@ class ForecasterQR(pl.LightningModule):
         '''
         :param y_tensor: time series data of past
         :param x_tensor: feature/calender data of the past
-        :param x_future_tensor: feature/calaender data of the future
+        :param x_future_tensor: feature/calender data of the future
         :return:
         '''
         batch_size = y_tensor.shape[0]
-        if x_tensor:
-            past_vector = torch.cat([y_tensor, x_tensor], axis=1)
+        if x_tensor is not None:
+            past_vector = torch.cat([y_tensor, x_tensor], axis=2)
         else:
             past_vector = y_tensor
         encoded_hidden_state, _ = self.encoder(past_vector)
@@ -157,11 +158,13 @@ class ForecasterQR(pl.LightningModule):
         return loss
 
     def validation_step(self, val_batch, batch_idx):
-        x, y = val_batch
-        pred = self(x)
+        (x_data, x_calendar_past, x_calendar_future), y = val_batch
+        pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
         self.log('val_loss', loss, on_step=False, on_epoch=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)  # todo add lr_decay
+
         return optimizer
