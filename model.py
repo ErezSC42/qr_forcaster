@@ -30,7 +30,7 @@ class Encoder(pl.LightningModule):
         # TODO return all the states or only the last
         output, (henc, cenc) = self.encoder_lstm(x)  # expects batch, sequence_len, feature_size
         # output, (henc, cenc) = self.encoder_lstm(x.view(x.shape[0], x.shape[1], 1)) #expects batch, sequence_len, feature_size
-        return henc[:, 0, :], cenc[:, 0, :]  # returns encoded state [batch_size, hidden_dim]
+        return henc[0, :, :], cenc[0, :, :]  # returns encoded state [batch_size, hidden_dim]
 
 
 class DecoderGlobal(pl.LightningModule):
@@ -73,7 +73,7 @@ class DecoderLocal(pl.LightningModule):
         self.mlp = nn.Linear(in_features=self.input_dim, out_features=self.output_dim)
 
     def forward(self, context_vector, context_alpha_vector, x_future_data=None):
-        if x_future_data:
+        if x_future_data is not None:
             vec_list = [context_vector, context_alpha_vector, x_future_data]
         else:
             vec_list = [context_vector, context_alpha_vector]
@@ -136,7 +136,10 @@ class ForecasterQR(pl.LightningModule):
         else:
             past_vector = y_tensor
         encoded_hidden_state, _ = self.encoder(past_vector)
-        global_state = self.global_decoder(encoded_hidden_state)
+
+        torch.cat([encoded_hidden_state, x_future_tensor.view(batch_size, -1)], axis=-1)
+
+        global_state = self.global_decoder(torch.cat([encoded_hidden_state, x_future_tensor.view(batch_size, -1)], axis=-1))
 
         # init output tensor in [batch_size, horizons, quantiles]
         output_tensor = torch.zeros([batch_size, self.horizons, self.q])
@@ -146,12 +149,12 @@ class ForecasterQR(pl.LightningModule):
             # take the correct elements from the global_state vector, matching the current k
             c_alpha = global_state[:, -self.context_dim:]  # get c_alpha
             c_t_k = global_state[:, k * self.context_dim:(k + 1) * self.context_dim]
-            output_tensor[:, k, :] = self.local_decoder(c_t_k, c_alpha, x_future_tensor).unsqueeze(dim=1)
+            output_tensor[:, k, :] = self.local_decoder(c_t_k, c_alpha, x_future_tensor[:, k, :])
 
         return output_tensor
 
     def training_step(self, train_batch, batch_idx):
-        (x_data, x_calendar_past, x_calendar_future), y= train_batch
+        (x_data, x_calendar_past, x_calendar_future), y = train_batch
         pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
         self.log('train_loss', loss, on_step=False, on_epoch=True)
@@ -162,7 +165,19 @@ class ForecasterQR(pl.LightningModule):
         pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
         self.log('val_loss', loss, on_step=False, on_epoch=True)
+        self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True) #todo check it
+
+
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)  # todo add lr_decay
-        return optimizer
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        scheduler = \
+            {
+                'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.9, patience=2, threshold=0.0001, cooldown=0, min_lr=1e-7, eps=1e-08),
+                'monitor': 'val_loss',
+                'interval': 'epoch',
+                'frequency': 1
+            }
+        self.optim = optimizer
+
+        return [optimizer], [scheduler]

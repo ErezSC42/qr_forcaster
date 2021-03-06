@@ -7,8 +7,6 @@ from torch.utils.data import Dataset
 class ElDataset(Dataset):
     """Electricity dataset."""
 
-    # TODO add calendaric features
-
     def __init__(self, df, num_samples, hist_hours=168, future_hours=24):
         """
         Args:
@@ -23,7 +21,7 @@ class ElDataset(Dataset):
         self.sample()
 
     def __len__(self):
-        return self.num_samples * self.raw_data.shape[1]
+        return self.num_samples * (self.raw_data.shape[1]-len(self.calendar_features))
 
     def __getitem__(self, idx):
         """Yield one sample, according to `self.get_mapping(idx)`."""
@@ -56,7 +54,7 @@ class ElDataset(Dataset):
 
         return (x_data, x_calendar_past, x_calendar_future), y
 
-    # TODO add static,seasunal features
+    # TODO add static feature? (house number embedding?)
 
     def get_mapping(self, idx):
         """Mapping between dataset index `idx` and actual `(household, start_ts)` pair."""
@@ -89,6 +87,7 @@ class ElDataset(Dataset):
         self.raw_data["weekly_cycle"] = np.sin(2 * np.pi * self.raw_data.index.dayofweek / 7)
         self.raw_data["daily_cycle"] = np.sin(2 * np.pi * self.raw_data.index.hour / 24)
         self.calendar_features = ["yearly_cycle", "weekly_cycle", "daily_cycle"]
+
 
     def el_resample(self, df):
         return df.resample("1H", on="timestamp").mean().reset_index()
