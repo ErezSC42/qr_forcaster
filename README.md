@@ -20,3 +20,5 @@ the script will choose the best model from the trained models folder, will sampl
 ![ex2](images/ex2.png)
 ![ex3](images/ex3.png)
 ![ex4](images/ex4.png)
+![ex5](images/ex5.png)
+
