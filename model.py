@@ -100,6 +100,7 @@ class ForecasterQR(pl.LightningModule):
             device: str
     ):
         super(ForecasterQR, self).__init__()
+        self.save_hyperparameters()
         self.encoder = Encoder(
             data_dim=y_dim,
             hidden_dim=encoder_hidden_dim,
