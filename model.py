@@ -151,8 +151,8 @@ class ForecasterQR(pl.LightningModule):
         return output_tensor
 
     def training_step(self, train_batch, batch_idx):
-        x, y = train_batch
-        pred = self(x)
+        (x_data, x_calendar_past, x_calendar_future), y= train_batch
+        pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
         self.log('train_loss', loss, on_step=False, on_epoch=True)
         return loss
@@ -164,7 +164,5 @@ class ForecasterQR(pl.LightningModule):
         self.log('val_loss', loss, on_step=False, on_epoch=True)
 
     def configure_optimizers(self):
-
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)  # todo add lr_decay
-
         return optimizer
