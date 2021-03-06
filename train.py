@@ -25,7 +25,9 @@ if __name__ == '__main__':
     with open(test_dl_path, "wb") as fp:
         pickle.dump(train_el_dataloader, fp)
 
-    quantiles = [.1, .2, .3, .4, .5, .6, .7, .8, .9, .95]
+    #quantiles = [.1, .2, .3, .4, .5, .6, .7, .8, .9, .95]
+    quantiles = [.2,.4,.5,.6,.8]
+
     model = ForecasterQR(
         x_dim=3,
         y_dim=4,

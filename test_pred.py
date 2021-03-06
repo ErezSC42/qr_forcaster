@@ -1,6 +1,7 @@
 import os
 import pickle
 import random
+import datetime
 import numpy as np
 import torch
 import pytorch_lightning as pl
@@ -12,6 +13,40 @@ data_path = os.path.join("data", "LD2011_2014.txt")
 
 TRAIN_DL_PATH = os.path.join("dataloaders", "train_dl.pkl")
 TEST_DL_PATH = os.path.join("dataloaders", "test_dl.pkl")
+
+
+def predict(model, dataset, index):
+    household, start_timestamp = dataset.get_mapping(index)
+    data_sample = dataset[index]
+    features = data_sample[0]
+    future_series = data_sample[1]
+    past_series = features[0].unsqueeze(0)
+    x_tensor = features[1].unsqueeze(0)
+    x_future_tensor = features[2].unsqueeze(0)
+    res = model(y_tensor=past_series, x_tensor=x_tensor, x_future_tensor=x_future_tensor).squeeze()
+    return household, start_timestamp, past_series, future_series, res
+
+
+def plot_prediction(start_ts, household, model_output, y_past, y_future):
+    res = model_output.cpu().detach().numpy()
+    past_ts_index = [start_ts + datetime.timedelta(hours=x) for x in range(168)]
+    future_ts_index = [start_ts + datetime.timedelta(hours=(168 + x)) for x in range(24)]
+
+    quantiles_num = len(model.quantiles)
+    half = (quantiles_num - 1) // 2
+    fig = plt.figure()
+    plt.title(f"Consumption prediction for household {household}")
+    plt.plot(past_ts_index, y_past.squeeze(), label="past consumption")
+    plt.plot(future_ts_index, y_future, label="actual consumption")
+    plt.plot(future_ts_index, res[:, 5], label="median prediction")
+    for i in range(half):
+        alph = 0.05 + 0.5 * (i / len(model.quantiles))
+        plt.fill_between(future_ts_index, res[:, i], res[:, -(i + 1)],
+                         color="g", alpha=alph)
+    fig.autofmt_xdate(bottom=0.2, rotation=30, ha='right')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -27,39 +62,11 @@ if __name__ == '__main__':
 
     # test data
     with open(TEST_DL_PATH, "rb") as fp:
-        train_dl = pickle.load(fp)
+        pred_dl = pickle.load(fp)
 
-    non_zero_indexes = [46369]
-    train_dataset = train_dl.dataset
-    index = random.randint(0, len(train_dataset))
-
+    pred_dataset = pred_dl.dataset
+    index = random.randint(0, len(pred_dataset))
     print(f"sampled index: {index}")
 
-    data_sample = train_dataset[index]
-    features = data_sample[0]
-    future_series = data_sample[1]
-    y_tensor = features[0].unsqueeze(0)
-    x_tensor = features[1].unsqueeze(0)
-    x_future_tensor = features[2].unsqueeze(0)
-
-    res = model(y_tensor=y_tensor, x_tensor=x_tensor, x_future_tensor=x_future_tensor).squeeze()
-    res = res.cpu().detach().numpy()
-    print(res.shape)
-
-    past_index = np.arange(0, 168)
-    future_index = np.arange(168, 192)
-
-    plt.figure()
-    plt.plot(past_index ,y_tensor.squeeze(), label="past consumption")
-    plt.plot(future_index, future_series, label="actual consumption")
-    plt.plot(future_index, res[:, 5], label="model prediction")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-
-
-
-
-
-
+    household, start_timestamp, past_series, future_series, res = predict(model, dataset=pred_dataset, index=index)
+    plot_prediction(start_timestamp, household, res, y_past=past_series, y_future=future_series)
