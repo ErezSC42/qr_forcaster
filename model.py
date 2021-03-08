@@ -97,7 +97,8 @@ class ForecasterQR(pl.LightningModule):
             decoder_context_dim: int,
             quantiles: List[float],
             horizons: int,
-            device: str
+            device: str,
+            sequence_forking: bool
     ):
         super(ForecasterQR, self).__init__()
         self.save_hyperparameters()
@@ -113,6 +114,7 @@ class ForecasterQR(pl.LightningModule):
         self.q = len(self.quantiles)
         self.device_ = device
         self.loss = QuantileLoss(quantiles, device=self.device_)
+        self.sequence_forking = sequence_forking
 
         # TODO correctly init decoders
         self.global_decoder = DecoderGlobal(encoder_hidden_dim=encoder_hidden_dim,
@@ -157,6 +159,11 @@ class ForecasterQR(pl.LightningModule):
 
     def training_step(self, train_batch, batch_idx):
         (x_data, x_calendar_past, x_calendar_future), y = train_batch
+        if self.sequence_forking:
+            x_data = x_data.reshape([-1, x_data.shape[-2]]).unsqueeze(-1)
+            x_calendar_past = x_calendar_past.reshape([-1, x_calendar_past.shape[-2], x_calendar_past.shape[-1]])
+            x_calendar_future = x_calendar_future.reshape([-1, x_calendar_future.shape[-2], x_calendar_future.shape[-1]])
+            y = y.reshape([-1, y.shape[-1]])
         pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
         self.log('train_loss', loss, on_step=False, on_epoch=True)
@@ -167,7 +174,7 @@ class ForecasterQR(pl.LightningModule):
         pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
         self.log('val_loss', loss, on_step=False, on_epoch=True)
-        self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True)  # todo check it
+        self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
