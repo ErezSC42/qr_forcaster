@@ -8,13 +8,15 @@ python3 train.py
 ```
 best trained model will be saved to "/trained_models/" and the train/test dataloaders are saved in "/dataloaders/". It is important to use the dataloaders that were created with the model to avoid data leakage in test time.
 
+*To enable forking sequence, in train.py, change forking to True. It is recommended to reduce batch size, since the sequence forking is implemented "on the fly" and requires high GPU memory.*
+
 ## Testing
 testing the trained can be done by running:
 ```bash
 python3 test_pred.py
 ```
 the script will choose the best model from the trained models folder, will sample a series from the dataloader, predict forecasting and plot it
-## Predicion Results:
+## Prediction Results:
 
 ![ex1](images/ex1.png)
 ![ex2](images/ex2.png)
