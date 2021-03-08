@@ -8,7 +8,7 @@ python3 train.py
 ```
 best trained model will be saved to "/trained_models/" and the train/test dataloaders are saved in "/dataloaders/". It is important to use the dataloaders that were created with the model to avoid data leakage in test time.
 
-*To enable forking sequence, in train.py, change forking to True. It is recommended to reduce batch size, since the sequence forking is implemented "on the fly" and requires high GPU memory.*
+*To enable forking sequence, in train.py, change forking to True. It is recommended to reduce batch size, since the forking sequence is implemented "on the fly" and requires high GPU memory.*
 
 ## Testing
 testing the trained can be done by running:
