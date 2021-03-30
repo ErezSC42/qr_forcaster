@@ -1,0 +1,21 @@
+authorName: erezsc
+experimentName: Bert POS probing classifier - Pretrained weights
+trialConcurrency: 6
+maxExecDuration: 96h
+maxTrialNum: 500
+#choice: local, remote, pai
+trainingServicePlatform: local
+searchSpacePath: qr_forcaster_search_space.json
+#choice: true, false
+useAnnotation: false
+tuner:
+  #choice: TPE, Random, Anneal, Evolution, BatchTuner, MetisTuner, GPTuner
+  #SMAC (SMAC should be installed through nnictl)
+  builtinTunerName: Evolution
+  classArgs:
+    #choice: maximize, minimize
+    optimize_mode: minimize
+    population_size: 100
+trial:
+  command: python3 train.py --epochs 50 --use-nni
+  codeDir: .

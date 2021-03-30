@@ -1,4 +1,5 @@
 import torch
+import datetime
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
@@ -7,7 +8,7 @@ from torch.utils.data import Dataset
 class ElDataset(Dataset):
     """Electricity dataset."""
 
-    def __init__(self, df, num_samples, hist_hours=168, future_hours=24, forking_total_seq_length=None):
+    def __init__(self, df, num_samples = None, hist_hours=168, future_hours=24, forking_total_seq_length=None):
         """
         Args:
             df: original electricity data (see HW intro for details).
@@ -25,7 +26,9 @@ class ElDataset(Dataset):
         self.sample()
 
     def __len__(self):
-        return self.num_samples * (self.raw_data.shape[1] - len(self.calendar_features))
+        if self.num_samples:
+            return self.num_samples * (self.raw_data.shape[1] - len(self.calendar_features))
+        return  self.num_samples * (self.raw_data.shape[1] - len(self.calendar_features))
 
     def __getitem__(self, idx):
         """Yield one sample, according to `self.get_mapping(idx)`."""
@@ -95,15 +98,21 @@ class ElDataset(Dataset):
         """
 
         self.mapping = {}
-        timestamps = self.raw_data[:(self.raw_data.index.max() - self.full_length)].index.to_series()
 
-        idx = np.arange(self.num_samples * self.raw_data.shape[1])
-        np.random.shuffle(idx)
+        if self.num_samples:
+            idx = np.arange(self.num_samples * self.raw_data.shape[1])
+            np.random.shuffle(idx)
+            timestamps = self.raw_data[:(self.raw_data.index.max() - self.full_length)].index.to_series()
+        else:
+            idx = np.arange(self.raw_data.shape[1])
+            timestamps = pd.date_range(self.raw_data.index[0],
+                          self.raw_data.index[0] + datetime.timedelta(hours=(self.future_hours + self.hist_hours - 1)),
+                          freq='H')
+            self.raw_data = self.raw_data.reindex(timestamps)
 
         pairs = []
-
         for household in self.raw_data.columns:
-            start_ts = timestamps.sample(self.num_samples)
+            start_ts = timestamps.sample(self.num_samples) if self.num_samples else [timestamps[0]]
             pairs.extend([(household, sts) for sts in start_ts])
 
         self.mapping = {idx[i]: pairs[i] for i in range(len(idx))}

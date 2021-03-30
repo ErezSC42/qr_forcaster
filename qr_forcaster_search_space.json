@@ -1,0 +1,61 @@
+{
+  "encoder-layer-count": {
+    "_type": "choice",
+    "_value": [
+      1,
+      2,
+      3
+    ]
+  },
+  "encoder-encoder-hidden-dim": {
+    "_type": "choice",
+    "_value": [
+      16
+      32,
+      64,
+      128,
+    ]
+  },
+  "decoder-context-dim": {
+    "_type": "choice",
+    "_value": [
+      16,
+      32,
+      64,
+      128,
+    ]
+  },
+  "use-forking-sequences": {
+    "_type": "choice",
+    "_value": [
+      "True",
+      "False"
+    ]
+  },
+  "batch-size": {
+    "_type": "choice",
+    "_value": [
+      32,
+      64,
+      128,
+      256,
+      512
+    ]
+  },
+  "learning_rate": {
+    "_type": "choice",
+    "_value": [
+      0.00001,
+      0.0001,
+      0.0005,
+      0.001
+    ]
+  },
+  "weight_decay": {
+    "_type": "choice",
+    "_value": [
+      0.0001,
+      0.00005
+    ]
+  }
+}

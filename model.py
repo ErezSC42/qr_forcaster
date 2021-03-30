@@ -1,5 +1,5 @@
+import nni
 from typing import List
-
 import pytorch_lightning as pl
 import torch
 from torch import nn
@@ -24,7 +24,7 @@ class Encoder(pl.LightningModule):
         self.num_layers = num_layers
         self.max_sequence_len = max_sequence_len
         self.encoder_lstm = nn.LSTM(input_size=data_dim, hidden_size=hidden_dim, batch_first=True,
-                                    num_layers=num_layers)
+                                    num_layers=num_layers, bidirectional=True)
 
     def forward(self, x):
         # TODO return all the states or only the last
@@ -98,15 +98,24 @@ class ForecasterQR(pl.LightningModule):
             quantiles: List[float],
             horizons: int,
             device: str,
-            sequence_forking: bool
+            sequence_forking: bool,
+            init_weight_decay: float,
+            init_learning_rate: float
     ):
         super(ForecasterQR, self).__init__()
         self.save_hyperparameters()
+        self.metrics = {
+            "train_loss": [],
+            "val_loss": []
+        }
         self.encoder = Encoder(
             data_dim=y_dim,
             hidden_dim=encoder_hidden_dim,
             num_layers=encoder_num_layers,
             max_sequence_len=input_max_squence_len)
+
+        self.init_weight_decay = init_weight_decay
+        self.init_learning_rate = init_learning_rate
 
         self.horizons = horizons
         self.quantiles = quantiles
@@ -166,6 +175,7 @@ class ForecasterQR(pl.LightningModule):
             y = y.reshape([-1, y.shape[-1]])
         pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
+        self.metrics["train_loss"].append(loss.item())
         self.log('train_loss', loss, on_step=False, on_epoch=True)
         return loss
 
@@ -173,11 +183,22 @@ class ForecasterQR(pl.LightningModule):
         (x_data, x_calendar_past, x_calendar_future), y = val_batch
         pred = self(x_data, x_calendar_past, x_calendar_future)
         loss = self.loss(pred, y)
+        self.metrics["val_loss"].append(loss.item())
         self.log('val_loss', loss, on_step=False, on_epoch=True)
         self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True)
 
+    def on_validation_end(self) -> None:
+        train_loss = torch.mean(torch.Tensor(self.metrics["train_loss"])).item()
+        val_loss = torch.mean(torch.Tensor(self.metrics["val_loss"])).item()
+        self.metrics["train_loss"] = []
+        self.metrics["val_loss"] = []
+        nni.report_intermediate_result({
+            "train_loss": train_loss,
+            "default": val_loss}
+        )
+
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.init_learning_rate, weight_decay=self.init_weight_decay)
         scheduler = \
             {
                 'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.9, patience=2,
