@@ -149,8 +149,6 @@ class ForecasterQR(pl.LightningModule):
             past_vector = y_tensor
         encoded_hidden_state, _ = self.encoder(past_vector)
 
-        torch.cat([encoded_hidden_state, x_future_tensor.view(batch_size, -1)], axis=-1)
-
         global_state = self.global_decoder(
             torch.cat([encoded_hidden_state, x_future_tensor.view(batch_size, -1)], axis=-1))
 
