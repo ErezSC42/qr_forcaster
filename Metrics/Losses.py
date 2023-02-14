@@ -26,6 +26,6 @@ class QuantileLoss(Module):
                     (q - 1) * errors,
                     q * errors
                 ).unsqueeze(1))
-        loss = torch.mean(
-            torch.sum(torch.cat(losses, dim=1), dim=1))
-        return loss
+        losses = torch.mean(torch.sum(torch.cat(losses, dim=1), dim=1), dim=1)
+        total_loss = torch.mean(losses)
+        return total_loss, losses

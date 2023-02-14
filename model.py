@@ -100,7 +100,7 @@ class ForecasterQR(pl.LightningModule):
             device: str,
             sequence_forking: bool,
             init_weight_decay: float,
-            init_learning_rate: float
+            init_learning_rate: float,
     ):
         super(ForecasterQR, self).__init__()
         self.save_hyperparameters()
@@ -165,25 +165,30 @@ class ForecasterQR(pl.LightningModule):
         return output_tensor
 
     def training_step(self, train_batch, batch_idx):
-        (x_data, x_calendar_past, x_calendar_future), y = train_batch
+        (x_data, x_calendar_past, x_calendar_future), y, asset_names = train_batch
         if self.sequence_forking:
             x_data = x_data.reshape([-1, x_data.shape[-2]]).unsqueeze(-1)
             x_calendar_past = x_calendar_past.reshape([-1, x_calendar_past.shape[-2], x_calendar_past.shape[-1]])
             x_calendar_future = x_calendar_future.reshape([-1, x_calendar_future.shape[-2], x_calendar_future.shape[-1]])
             y = y.reshape([-1, y.shape[-1]])
         pred = self(x_data, x_calendar_past, x_calendar_future)
-        loss = self.loss(pred, y)
-        self.metrics["train_loss"].append(loss.item())
-        self.log('train_loss', loss, on_step=False, on_epoch=True)
-        return loss
+        total_loss, losses = self.loss(pred, y)
+        self.metrics["train_loss"].append(total_loss.item())
+        self.log('train_loss', total_loss, on_step=False, on_epoch=True)
+        per_asset = {asset: loss for asset, loss in zip(asset_names, losses)}
+        self.logger.experiment.add_scalars('train_loss_per_asset', per_asset, global_step=self.global_step)
+        return total_loss
 
     def validation_step(self, val_batch, batch_idx):
-        (x_data, x_calendar_past, x_calendar_future), y = val_batch
+        (x_data, x_calendar_past, x_calendar_future), y, asset_names = val_batch
         pred = self(x_data, x_calendar_past, x_calendar_future)
-        loss = self.loss(pred, y)
-        self.metrics["val_loss"].append(loss.item())
-        self.log('val_loss', loss, on_step=False, on_epoch=True)
+        total_loss, losses = self.loss(pred, y)
+        self.metrics["val_loss"].append(total_loss.item())
+        self.log('val_loss', total_loss, on_step=False, on_epoch=True)
         self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True)
+
+        per_asset = {asset: loss for asset, loss in zip(asset_names, losses)}
+        self.logger.experiment.add_scalars('val_loss_per_asset', per_asset, global_step=self.global_step)
 
     def on_validation_end(self) -> None:
         train_loss = torch.mean(torch.Tensor(self.metrics["train_loss"])).item()
@@ -192,8 +197,8 @@ class ForecasterQR(pl.LightningModule):
         self.metrics["val_loss"] = []
         nni.report_intermediate_result({
             "train_loss": train_loss,
-            "default": val_loss}
-        )
+            "default": val_loss
+        })
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.init_learning_rate, weight_decay=self.init_weight_decay)

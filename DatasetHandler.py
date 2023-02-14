@@ -19,21 +19,27 @@ class DatasetHandler:
         if forking_total_seq_length is not None:
             assert (self.forking_total_seq_length > self.hist_days + pred_horizon)
 
+    def load_df(self):
+        assets = []
+        for p in self.data_path.iterdir():
+            asset = pd.read_csv(p, parse_dates=True, index_col=0)
+            asset_name = asset.columns[0]
+            if 'd0.' in asset_name:
+                assets.append(asset)    
+            else:
+                print(f'skipping {asset_name}')
+        df = pd.concat(assets, axis=1)
+        df = df.reset_index()
+        df = df.ffill()
+        df = df.dropna()
+        df = df.rename({"Date": "timestamp"}, axis=1)
+        # df.pop("stoxx50_d0.05")
+        return df
+
+
     def load_dataset(self, df: pd.DataFrame = None, split: bool = True, num_workers=0):
         if df is None:
-            assets = []
-            for p in self.data_path.iterdir():
-                asset = pd.read_csv(p, parse_dates=True, index_col=0)
-                asset_name = asset.columns[0]
-                if 'd0.' in asset_name:
-                    assets.append(asset)    
-                else:
-                    print(f'skipping {asset_name}')
-            df = pd.concat(assets, axis=1)
-            df = df.reset_index()
-            df = df.ffill()
-            df = df.dropna()
-            df.rename({"Date": "timestamp"}, axis=1, inplace=True)
+            df = self.load_df()
         if split:
             df_train, df_val = self.split_df(df, True)
             train_dataset = FinticaDataset(df=df_train, num_samples=self.num_samples, hist_days=self.hist_days,
