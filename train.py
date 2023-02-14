@@ -14,9 +14,15 @@ from arguments import get_params
 from DatasetHandler import DatasetHandler
 
 
-data_path = Path("/home/villqrd/Downloads/heston/datasets/raw/")
+#data_path = Path("/home/villqrd/Downloads/heston/datasets/raw/")
+data_path = Path("/home/roxane/fintica/code/qr_forcaster/raw_df")
 TRAINED_MODEL_PATH = Path("trained_models")
 DATALOADERS_PATH = Path("dataloaders")
+
+
+# data_path = Path("/home/roxane/fintica/code/qr_forcaster/df_with_feat")
+# TRAINED_MODEL_PATH = os.path.join("trained_models")
+# DATALOADERS_PATH = os.path.join("dataloaders")
 
 def set_seeds(seed):
     torch.manual_seed(seed)
@@ -56,10 +62,15 @@ def main(args):
 
     # quantiles = [.1, .2, .3, .4, .5, .6, .7, .8, .9, .95]
     # quantiles = [.2, .4, .5, .6, .8]
-
+    
+    futur_input_dim=len(train_loader.dataset.calendar_features)
+    input_features_dim = len(list(train_loader.dataset.dict_features.values())[0].columns) if list(train_loader.dataset.dict_features.values())[0] is not None else 0
+    data_dim = 1 + futur_input_dim + input_features_dim
+    
+    
     model = ForecasterQR(
-        x_dim=3,
-        y_dim=4,
+        x_future_dim=futur_input_dim,
+        data_dim=data_dim,
         input_max_squence_len=args.max_sequence_len,
         encoder_hidden_dim=args.encoder_hidden_dim,
         encoder_num_layers=args.encoder_layer_count,
