@@ -67,10 +67,10 @@ def main(args):
         max_epochs=args.epochs,
         callbacks=checkpoint_cb,
         num_sanity_val_steps=0)
-
     trainer.fit(model, train_loader, val_loader)
     val_loss = trainer.callback_metrics["val_loss"].item()
     nni.report_final_result({"default": val_loss})
+    
 
 
 if __name__ == '__main__':

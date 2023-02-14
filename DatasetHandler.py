@@ -24,7 +24,11 @@ class DatasetHandler:
             assets = []
             for p in self.data_path.iterdir():
                 asset = pd.read_csv(p, parse_dates=True, index_col=0)
-                assets.append(asset)    
+                asset_name = asset.columns[0]
+                if 'd0.' in asset_name:
+                    assets.append(asset)    
+                else:
+                    print(f'skipping {asset_name}')
             df = pd.concat(assets, axis=1)
             df = df.reset_index()
             df = df.ffill()
@@ -53,7 +57,7 @@ class DatasetHandler:
             print("splitting assets!")
             assets = df.columns[1:]
             train_assets, test_assets = train_test_split(assets, test_size=0.5)
-            assert set(train_assets).intersection(set(test_assets)) == set() # make sure no leakage
+            assert not set(train_assets).intersection(set(test_assets)) # make sure no leakage
             train_assets = train_assets.tolist()
             test_assets = test_assets.tolist()
             train_assets.insert(0, "timestamp")

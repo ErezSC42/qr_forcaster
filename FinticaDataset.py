@@ -28,10 +28,7 @@ class FinticaDataset(Dataset):
     def __len__(self):
         return  self.num_samples * (self.raw_data.shape[1] - len(self.calendar_features))
 
-    def __getitem__(self, idx):
-        """Yield one sample, according to `self.get_mapping(idx)`."""
-
-        asset, start_ts = self.mapping[idx]
+    def get(self, asset, start_ts):
         if self.forking_total_seq_length is None:
             hist_start = start_ts
 
@@ -88,6 +85,11 @@ class FinticaDataset(Dataset):
             y = data[:, self.hist_days:, 0]
         return (x_data, x_calendar_past, x_calendar_future), y
 
+    def __getitem__(self, idx):
+        """Yield one sample, according to `self.get_mapping(idx)`."""
+        asset, start_ts = self.mapping[idx]
+        return self.get(asset, start_ts)
+        
     # TODO add static feature? (house number embedding?)
 
     def get_mapping(self, idx):
