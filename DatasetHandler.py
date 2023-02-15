@@ -38,7 +38,7 @@ class DatasetHandler:
 
             self.asset_names.append(asset_name)
             if 'd0.' in asset_name:
-                assets.append(asset)    
+                assets.append(asset[[asset_name]])    
             else:
                 print(f'skipping {asset_name}')
         df = pd.concat(assets, axis=1)
@@ -50,7 +50,7 @@ class DatasetHandler:
         return df, dict_df_features
 
 
-    def load_dataset(self, df: pd.DataFrame = None, split: bool = True, num_workers=0):
+    def load_dataset(self, df: pd.DataFrame = None, dict_df_features:pd.DataFrame=None,split: bool = True, num_workers=0):
         if df is None:
             df, dict_df_features = self.load_df()
         if split:

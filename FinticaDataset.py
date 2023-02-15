@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
+from termcolor import colored
 
 
 class FinticaDataset(Dataset):
@@ -31,8 +32,7 @@ class FinticaDataset(Dataset):
         return  self.num_samples * (self.raw_data.shape[1] - len(self.calendar_features))
 
     def get(self, asset, start_ts):
-        from termcolor import colored
-        print(colored(asset, "green"))
+      #  print(colored(asset, "green"))
         if self.forking_total_seq_length is None:
             hist_start = start_ts
 
@@ -114,7 +114,7 @@ class FinticaDataset(Dataset):
         i.e., `self.samples` samples from `MT_001` first, then `self.samples` samples from `MT_002`, and so on.
         """
         from termcolor import colored
-        print(colored('sample','red'))
+        print(colored('Create FCTs for train and val','red'))
         self.mapping = {}
 
         timestamps = range(len(self.raw_data.index) - self.full_length)
