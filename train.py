@@ -14,13 +14,14 @@ from arguments import get_params
 from DatasetHandler import DatasetHandler
 
 
-NAME_EXP = "raw_df"
-#NAME_EXP = 'df_with_feat'
-data_path = Path(f"/home/roxane/fintica/code/qr_forcaster/{NAME_EXP}")
+df_name = "raw_df"
+NAME_EXP = f'{df_name}_nosplit'
+#df_name = 'df_with_feat'
+data_path = Path(f"/home/roxane/fintica/code/qr_forcaster/{df_name}")
 TRAINED_MODEL_PATH = Path("trained_models")
 DATALOADERS_PATH = Path("dataloaders")
 LOSS_PATH = Path("lightning_losses")
-
+SPLIT_DF = True
 
 # TRAINED_MODEL_PATH = os.path.join("trained_models")
 # DATALOADERS_PATH = os.path.join("dataloaders")
@@ -47,7 +48,7 @@ def main(args):
         forking_total_seq_length=forking_total_seq_length
     )
     df, dict_df_features = data_handler.load_df()    
-    train_loader, val_loader = data_handler.load_dataset(df,dict_df_features)
+    train_loader, val_loader = data_handler.load_dataset(df,dict_df_features, split_assets=SPLIT_DF)
 
     if args.debug:
         debug_datasets(df, "train", DATALOADERS_PATH)
