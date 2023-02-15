@@ -45,8 +45,8 @@ def main(args):
         batch_size=args.batch_size,  # with forking, use lower batch size!
         forking_total_seq_length=forking_total_seq_length
     )
-    df = data_handler.load_df()    
-    train_loader, val_loader = data_handler.load_dataset(df)
+    df, dict_df_features = data_handler.load_df()    
+    train_loader, val_loader = data_handler.load_dataset(df,dict_df_features)
 
     if args.debug:
         debug_datasets(df, "train", DATALOADERS_PATH)
