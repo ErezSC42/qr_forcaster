@@ -14,13 +14,14 @@ from arguments import get_params
 from DatasetHandler import DatasetHandler
 
 
-#data_path = Path("/home/villqrd/Downloads/heston/datasets/raw/")
-data_path = Path("/home/roxane/fintica/code/qr_forcaster/raw_df")
+NAME_EXP = "raw_df"
+#NAME_EXP = 'df_with_feat'
+data_path = Path(f"/home/roxane/fintica/code/qr_forcaster/{NAME_EXP}")
 TRAINED_MODEL_PATH = Path("trained_models")
 DATALOADERS_PATH = Path("dataloaders")
+LOSS_PATH = Path("lightning_losses")
 
 
-# data_path = Path("/home/roxane/fintica/code/qr_forcaster/df_with_feat")
 # TRAINED_MODEL_PATH = os.path.join("trained_models")
 # DATALOADERS_PATH = os.path.join("dataloaders")
 
@@ -84,17 +85,21 @@ def main(args):
     )
 
     # model checkpoint callback
+    NAME_ARG = f'his{args.max_sequence_len}_for{args.forcast_horizons}_h{args.encoder_hidden_dim}_d{args.decoder_context_dim}_sa{args.dataset_num_samples}_lr{args.learning_rate}_ba{args.batch_size}_ep{args.epochs}'
     checkpoint_cb = pl.callbacks.ModelCheckpoint(
-        dirpath=TRAINED_MODEL_PATH,
+        dirpath=os.path.join(TRAINED_MODEL_PATH, f'{NAME_EXP}',f'{NAME_ARG}'),
         monitor="val_loss",
-        filename="model-{epoch:02d}-{val_loss:.2f}"
-    )
+        filename="model-{epoch:02d}-{val_loss:.2f}",
 
+    )
+    logger = pl.loggers.tensorboard.TensorBoardLogger(save_dir = LOSS_PATH,name = NAME_EXP, \
+                                                      version = NAME_ARG )
     trainer = pl.Trainer(
         gpus=args.gpus,
         max_epochs=args.epochs,
         callbacks=checkpoint_cb,
-        num_sanity_val_steps=0)
+        num_sanity_val_steps=0,
+        logger = logger)
     trainer.fit(model, train_loader, val_loader)
     val_loss = trainer.callback_metrics["val_loss"].item()
     nni.report_final_result({"default": val_loss})
