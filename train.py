@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
+import random
 import nni
+import numpy as np
 import torch
 import pickle
 from argparse import Namespace
@@ -13,20 +15,35 @@ from DatasetHandler import DatasetHandler
 
 
 data_path = Path("/home/villqrd/Downloads/heston/datasets/raw/")
-TRAINED_MODEL_PATH = os.path.join("trained_models")
-DATALOADERS_PATH = os.path.join("dataloaders")
+TRAINED_MODEL_PATH = Path("trained_models")
+DATALOADERS_PATH = Path("dataloaders")
 
+def set_seeds(seed):
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+
+def debug_datasets(dataset, name, outdir):
+    return
 
 def main(args):
+    set_seeds(args.seed)
+
     forking = args.use_forking_sequences
     forking_total_seq_length = 500 if forking else None
-    train_loader, val_loader = DatasetHandler(
+    data_handler = DatasetHandler(
         data_path,
         num_samples=args.dataset_num_samples,
         hist_days=args.max_sequence_len,
         pred_horizon=args.forcast_horizons,
         batch_size=args.batch_size,  # with forking, use lower batch size!
-        forking_total_seq_length=forking_total_seq_length).load_dataset()
+        forking_total_seq_length=forking_total_seq_length
+    )
+    df = data_handler.load_df()    
+    train_loader, val_loader = data_handler.load_dataset(df)
+
+    if args.debug:
+        debug_datasets(df, "train", DATALOADERS_PATH)
 
     # save dataloaders for predictions
     os.makedirs(DATALOADERS_PATH, exist_ok=True)

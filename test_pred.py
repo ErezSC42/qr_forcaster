@@ -2,6 +2,8 @@ import os
 import pickle
 import random
 import datetime
+
+import pandas as pd
 from config import prod_model_path
 from model import ForecasterQR
 import matplotlib.pyplot as plt
@@ -24,21 +26,17 @@ def predict(model, dataset, index):
     return asset, start, past_series, future_series, res
 
 
-def plot_prediction(asset, model_output, y_past, y_future, hist_ts, future_ts):
-    res = model_output.cpu().detach().numpy()
-    quantiles_num = len(model.quantiles)
-    half = (quantiles_num - 1) // 2
+def plot_prediction(asset, preds, y_past, y_future):
     fig = plt.figure()
     plt.title(f"prediction for asset {asset}")
-    plt.plot(hist_ts, y_past.squeeze(), label="past consumption")
-    plt.plot(future_ts, y_future, label="actual consumption")
-    for i, q in enumerate(model.quantiles):
-        plt.plot(future_ts, res[:, i], label=f"q={q}")
-    res = res[:, 1:]
+    plt.plot(y_past.index, y_past.values, label="past value")
+    plt.plot(y_future.index, y_future.values, label="actual value")
+    for i, q in enumerate(preds.columns):
+        plt.plot(future_ts, preds.loc[:, q], label=f"q={q}")
+    half = (preds.shape[1] - 1) // 2
     for i in range(half):
         alph = 0.0 + 2 * (i / len(model.quantiles))
-        plt.fill_between(future_ts, res[:, i], res[:, -(i + 1)],
-                         color="g", alpha=alph)
+        plt.fill_between(preds.index, preds.iloc[:, i], preds.iloc[:, -(i + 1)], color="g", alpha=alph)
     fig.autofmt_xdate(bottom=0.2, rotation=30, ha='right')
     plt.legend(loc="upper left")
     plt.xlabel("time")
@@ -67,25 +65,29 @@ if __name__ == '__main__':
         pred_dl = pickle.load(fp)
 
     pred_dataset = pred_dl.dataset
-    index = random.randint(0, len(pred_dataset))
-    print(f"sampled index: {index}")
 
-    # asset = "MT_006"
-    # s_index = 14000
-    # s_len = 674
-    # df_temp = pred_dl.dataset.raw_data[[asset]]
-    # df_temp["asset_name"] = asset
-    # df_temp.reset_index(inplace=True)
-    # df_temp.rename(columns={asset: "consumption"}, inplace=True)
-    # df_temp["timestamp"] = pd.to_datetime(df_temp["timestamp"])
-    # df_temp = df_temp.iloc[s_index:s_index+s_len, :]
-    # df_temp.to_json("dummmy.json", orient="records")
+    hist_quantiles = {q: pred_dataset.raw_data.expanding().quantile(q) for q in model.quantiles}
 
-    asset, hist_start, past_series, future_series, res = predict(model, dataset=pred_dataset, index=index)
-    hist_end = hist_start + pred_dataset.hist_days
-    future_start = hist_end + 1
-    future_end = future_start + pred_dataset.future_days
-    hist_ts = pred_dataset.raw_data.index[hist_start:hist_end]
-    future_ts = pred_dataset.raw_data.index[future_start:future_end]
-    plot_prediction(asset, res, y_past=past_series, y_future=future_series, 
-        hist_ts=hist_ts, future_ts=future_ts)
+
+    asset_name = 'ftse100_d0.1'
+    ordered_mapping = sorted([(ts, idx) for idx, (a, ts) in pred_dataset.mapping.items() if a == asset_name])
+    ordered_mapping = [m[1] for m in ordered_mapping]
+    for index in ordered_mapping:
+        # index = random.randint(0, len(pred_dataset))
+        # print(f"sampled index: {index}")
+
+        asset, hist_start, past_series, future_series, preds = predict(model, 
+            dataset=pred_dataset, 
+            index=index
+        )
+        hist_end = hist_start + pred_dataset.hist_days
+        future_start = hist_end + 1
+        future_end = future_start + pred_dataset.future_days
+        hist_ts = pred_dataset.raw_data.index[hist_start:hist_end]
+        future_ts = pred_dataset.raw_data.index[future_start:future_end]
+
+        past_df = pd.DataFrame(index=hist_ts, columns=[asset], data=past_series.detach().numpy().squeeze())
+        future_df = pd.DataFrame(index=future_ts, columns=[asset], data=future_series.detach().numpy().squeeze())
+        preds_df = pd.DataFrame(index=future_ts, columns=map(str, model.quantiles), data=preds.detach().numpy().squeeze())
+
+        plot_prediction(asset, preds_df, y_past=past_df, y_future=future_df)

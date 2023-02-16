@@ -1,5 +1,4 @@
 import torch
-import datetime
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
@@ -14,14 +13,15 @@ class FinticaDataset(Dataset):
             df: original electricity data (see HW intro for details).
             samples (int): number of sample to take per asset.
         """
-        self.raw_data = df.set_index("timestamp")
-        self.num_samples = num_samples
+        self.raw_data = df.set_index("timestamp").astype(float)
         self.hist_days = hist_days
         self.future_days = future_days
         if forking_total_seq_length is None:
             self.full_length = hist_days + future_days
         else:
             self.full_length = forking_total_seq_length
+        self.timestamps = range(len(self.raw_data.index) - self.full_length)
+        self.num_samples = min(num_samples, len(self.timestamps)) if num_samples else len(self.timestamps)
         self.forking_total_seq_length = forking_total_seq_length
         self.sample()
 
@@ -83,7 +83,7 @@ class FinticaDataset(Dataset):
             x_calendar_past = data[:, :self.hist_days, 1:]
             x_calendar_future = data[:, self.hist_days:, 1:]
             y = data[:, self.hist_days:, 0]
-        return (x_data, x_calendar_past, x_calendar_future), y
+        return (x_data, x_calendar_past, x_calendar_future), y, asset
 
     def __getitem__(self, idx):
         """Yield one sample, according to `self.get_mapping(idx)`."""
@@ -106,15 +106,14 @@ class FinticaDataset(Dataset):
 
         idx = np.arange(self.num_samples * self.raw_data.shape[1])
         np.random.shuffle(idx) 
-        timestamps = range(len(self.raw_data.index) - self.full_length)
-
+        
         pairs = []
         for asset in self.raw_data.columns:
-            start_ts_idx = np.random.choice(timestamps, replace=False, size=self.num_samples)
+            start_ts_idx = np.random.choice(self.timestamps, replace=False, size=self.num_samples)
             pairs.extend([(asset, sts_index) for sts_index in start_ts_idx])
 
         self.mapping = {idx[i]: pairs[i] for i in range(len(idx))}
-
+        self.non_calendar_features = list(self.raw_data.columns)
         self.create_calender_features()
 
     def create_calender_features(self):
