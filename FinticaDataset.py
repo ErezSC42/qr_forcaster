@@ -7,13 +7,15 @@ from torch.utils.data import Dataset
 class FinticaDataset(Dataset):
     """Fintica dataset."""
 
-    def __init__(self, df, num_samples = None, hist_days=126, future_days=20, forking_total_seq_length=None):
+    def __init__(self, df, num_samples = None, hist_days=126, future_days=20, forking_total_seq_length=None, dict_features=None):
         """
         Args:
             df: original electricity data (see HW intro for details).
             samples (int): number of sample to take per asset.
         """
         self.raw_data = df.set_index("timestamp").astype(float)
+        self.dict_features = dict_features
+        self.num_samples = num_samples
         self.hist_days = hist_days
         self.future_days = future_days
         if forking_total_seq_length is None:
@@ -38,8 +40,17 @@ class FinticaDataset(Dataset):
             future_start = hist_end + 1
             future_end = future_start + self.future_days
             hist_slice = self.raw_data.iloc[hist_start:hist_end]
+            
 
-            x_data = torch.Tensor(hist_slice[asset].values).unsqueeze(-1)
+            y_past = torch.Tensor(hist_slice[asset].values).unsqueeze(-1)
+            
+            # ----------ADDITIONAL FEATURES
+            
+            feat = self.dict_features.get(asset)
+            x_features_df = feat.iloc[hist_start:hist_end] if feat else None
+            x_features_past = torch.Tensor(x_features_df.values) if x_features_df is not None else torch.nan
+            # ----------A
+
             x_calendar_past = torch.stack(
                 [
                     torch.Tensor(hist_slice["yearly_cycle"].values),
@@ -79,11 +90,12 @@ class FinticaDataset(Dataset):
                 data[fct, :, :] = unsliced_data[fct:fct + self.hist_days + self.future_days, :]
 
             # data = data[mask, :]
-            x_data = data[:, :self.hist_days, 0].unsqueeze(-1)
+            y_past = data[:, :self.hist_days, 0].unsqueeze(-1)
             x_calendar_past = data[:, :self.hist_days, 1:]
             x_calendar_future = data[:, self.hist_days:, 1:]
             y = data[:, self.hist_days:, 0]
-        return (x_data, x_calendar_past, x_calendar_future), y, asset
+            x_features_past =None
+        return (y_past, x_calendar_past, x_features_past, x_calendar_future), y, asset
 
     def __getitem__(self, idx):
         """Yield one sample, according to `self.get_mapping(idx)`."""
@@ -101,9 +113,11 @@ class FinticaDataset(Dataset):
         Create sampling. Note that we shuffle `idx`, otherwise we would yield assets in batches,
         i.e., `self.samples` samples from `MT_001` first, then `self.samples` samples from `MT_002`, and so on.
         """
-
         self.mapping = {}
 
+        timestamps = range(len(self.raw_data.index) - self.full_length)
+        if self.num_samples is None:
+            self.num_samples = len(timestamps)
         idx = np.arange(self.num_samples * self.raw_data.shape[1])
         np.random.shuffle(idx) 
         

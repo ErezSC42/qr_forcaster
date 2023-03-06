@@ -42,10 +42,10 @@ class DecoderGlobal(pl.LightningModule):
             self,
             encoder_hidden_dim: int,
             context_dim: int,
-            x_future_dim: int,
+            future_input_dim: int,
             k: int):
         super(DecoderGlobal, self).__init__()
-        self.input_dim = encoder_hidden_dim + k * x_future_dim  # the dimension of the input data
+        self.input_dim = encoder_hidden_dim + k * future_input_dim  # the dimension of the input data
         self.output_dim = (k + 1) * context_dim  # k local contexts and global context
         self.mlp = nn.Linear(in_features=self.input_dim, out_features=self.output_dim)
 
@@ -89,8 +89,8 @@ class ForecasterQR(pl.LightningModule):
 
     def __init__(
             self,
-            y_dim: int,
-            x_dim: int,
+            data_dim: int,
+            future_input_dim: int,
             input_max_squence_len: int,
             encoder_hidden_dim: int,
             encoder_num_layers: int,
@@ -109,7 +109,7 @@ class ForecasterQR(pl.LightningModule):
             "val_loss": []
         }
         self.encoder = Encoder(
-            data_dim=y_dim,
+            data_dim=data_dim,
             hidden_dim=encoder_hidden_dim,
             num_layers=encoder_num_layers,
             max_sequence_len=input_max_squence_len)
@@ -128,12 +128,12 @@ class ForecasterQR(pl.LightningModule):
         # TODO correctly init decoders
         self.global_decoder = DecoderGlobal(encoder_hidden_dim=encoder_hidden_dim,
                                             context_dim=decoder_context_dim,
-                                            x_future_dim=x_dim,
+                                            future_input_dim=future_input_dim,
                                             k=horizons)
 
         # create a local decoder foreach output step
         self.local_decoder = DecoderLocal(context_dim=decoder_context_dim,
-                                          future_data_dim=x_dim, quantiles=quantiles)
+                                          future_data_dim=future_input_dim, quantiles=quantiles)
 
     def forward(self, y_tensor, x_tensor=None, x_future_tensor=None):
         '''
@@ -165,28 +165,31 @@ class ForecasterQR(pl.LightningModule):
         return output_tensor
 
     def training_step(self, train_batch, batch_idx):
-        (x_data, x_calendar_past, x_calendar_future), y, asset_names = train_batch
+        (y_tensor, x_calendar_past, x_features_past,x_calendar_future), y, asset_names = train_batch
         if self.sequence_forking:
-            x_data = x_data.reshape([-1, x_data.shape[-2]]).unsqueeze(-1)
+            y_tensor = y_tensor.reshape([-1, y_tensor.shape[-2]]).unsqueeze(-1)
             x_calendar_past = x_calendar_past.reshape([-1, x_calendar_past.shape[-2], x_calendar_past.shape[-1]])
             x_calendar_future = x_calendar_future.reshape([-1, x_calendar_future.shape[-2], x_calendar_future.shape[-1]])
             y = y.reshape([-1, y.shape[-1]])
-        pred = self(x_data, x_calendar_past, x_calendar_future)
+        x_tensor = torch.cat((x_calendar_past,x_features_past),dim=-1) if not torch.isnan(x_features_past).any() else x_calendar_past
+        pred = self(y_tensor, x_tensor, x_calendar_future)
+        
         total_loss, losses = self.loss(pred, y)
         self.metrics["train_loss"].append(total_loss.item())
         self.log('train_loss', total_loss, on_step=False, on_epoch=True)
         per_asset = {asset: loss for asset, loss in zip(asset_names, losses)}
         self.logger.experiment.add_scalars('train_loss_per_asset', per_asset, global_step=self.global_step)
         return total_loss
+    
 
     def validation_step(self, val_batch, batch_idx):
-        (x_data, x_calendar_past, x_calendar_future), y, asset_names = val_batch
-        pred = self(x_data, x_calendar_past, x_calendar_future)
+        (y_tensor, x_calendar_past, x_features_past,x_calendar_future), y,asset_names = val_batch
+        x_tensor = torch.cat((x_calendar_past,x_features_past),dim=-1) if not torch.isnan(x_features_past).any()  else x_calendar_past
+        pred = self(y_tensor, x_tensor, x_calendar_future)
         total_loss, losses = self.loss(pred, y)
         self.metrics["val_loss"].append(total_loss.item())
         self.log('val_loss', total_loss, on_step=False, on_epoch=True)
         self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True)
-
         per_asset = {asset: loss for asset, loss in zip(asset_names, losses)}
         self.logger.experiment.add_scalars('val_loss_per_asset', per_asset, global_step=self.global_step)
 
