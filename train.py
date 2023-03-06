@@ -65,13 +65,13 @@ def main(args):
     # quantiles = [.1, .2, .3, .4, .5, .6, .7, .8, .9, .95]
     # quantiles = [.2, .4, .5, .6, .8]
     
-    futur_input_dim=len(train_loader.dataset.calendar_features)
+    future_input_dim=len(train_loader.dataset.calendar_features)
     input_features_dim = len(list(train_loader.dataset.dict_features.values())[0].columns) if list(train_loader.dataset.dict_features.values())[0] is not None else 0
-    data_dim = 1 + futur_input_dim + input_features_dim
+    data_dim = 1 + future_input_dim + input_features_dim
     
     
     model = ForecasterQR(
-        futur_input_dim=futur_input_dim,
+        future_input_dim=future_input_dim,
         data_dim=data_dim,
         input_max_squence_len=args.max_sequence_len,
         encoder_hidden_dim=args.encoder_hidden_dim,
