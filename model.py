@@ -164,14 +164,25 @@ class ForecasterQR(pl.LightningModule):
 
         return output_tensor
 
+    @staticmethod
+    def get_x_tensor(x_features_past, x_calendar_past):
+        if torch.isnan(x_features_past).any():
+            x_tensor = x_calendar_past
+        else:
+            x_tensor = torch.cat((x_calendar_past, x_features_past), dim=-1)
+        return x_tensor
+
+
     def training_step(self, train_batch, batch_idx):
-        (y_tensor, x_calendar_past, x_features_past,x_calendar_future), y, asset_names = train_batch
+        (y_tensor, x_calendar_past, x_features_past, x_calendar_future), y, asset_names = train_batch
         if self.sequence_forking:
             y_tensor = y_tensor.reshape([-1, y_tensor.shape[-2]]).unsqueeze(-1)
             x_calendar_past = x_calendar_past.reshape([-1, x_calendar_past.shape[-2], x_calendar_past.shape[-1]])
             x_calendar_future = x_calendar_future.reshape([-1, x_calendar_future.shape[-2], x_calendar_future.shape[-1]])
             y = y.reshape([-1, y.shape[-1]])
-        x_tensor = torch.cat((x_calendar_past,x_features_past),dim=-1) if not torch.isnan(x_features_past).any() else x_calendar_past
+        
+        x_tensor = self.get_x_tensor(x_features_past, x_calendar_past)
+        
         pred = self(y_tensor, x_tensor, x_calendar_future)
         
         total_loss, losses = self.loss(pred, y)
@@ -183,8 +194,9 @@ class ForecasterQR(pl.LightningModule):
     
 
     def validation_step(self, val_batch, batch_idx):
-        (y_tensor, x_calendar_past, x_features_past,x_calendar_future), y,asset_names = val_batch
-        x_tensor = torch.cat((x_calendar_past,x_features_past),dim=-1) if not torch.isnan(x_features_past).any()  else x_calendar_past
+        (y_tensor, x_calendar_past, x_features_past, x_calendar_future), y,asset_names = val_batch
+        x_tensor = self.get_x_tensor(x_features_past, x_calendar_past)
+        
         pred = self(y_tensor, x_tensor, x_calendar_future)
         total_loss, losses = self.loss(pred, y)
         self.metrics["val_loss"].append(total_loss.item())
