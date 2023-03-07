@@ -31,6 +31,8 @@ class FinticaDataset(Dataset):
         return  self.num_samples * (self.raw_data.shape[1] - len(self.calendar_features))
 
     def get(self, asset, start_ts):
+        x_features_past = torch.Tensor([torch.nan])
+
         if self.forking_total_seq_length is None:
             hist_start = start_ts
 
@@ -48,7 +50,8 @@ class FinticaDataset(Dataset):
             
             feat = self.dict_features.get(asset)
             x_features_df = feat.iloc[hist_start:hist_end] if feat else None
-            x_features_past = torch.Tensor(x_features_df.values) if x_features_df is not None else torch.nan
+            if x_features_df is not None:
+                x_features_past = torch.Tensor(x_features_df.values)
             # ----------A
 
             x_calendar_past = torch.stack(
@@ -94,7 +97,7 @@ class FinticaDataset(Dataset):
             x_calendar_past = data[:, :self.hist_days, 1:]
             x_calendar_future = data[:, self.hist_days:, 1:]
             y = data[:, self.hist_days:, 0]
-            x_features_past =None
+
         return (y_past, x_calendar_past, x_features_past, x_calendar_future), y, asset
 
     def __getitem__(self, idx):
