@@ -23,7 +23,6 @@ DATALOADERS_PATH = Path("dataloaders")
 LOSS_PATH = Path("lightning_losses")
 SPLIT_DF = False
 
-# TRAINED_MODEL_PATH = os.path.join("trained_models")
 # DATALOADERS_PATH = os.path.join("dataloaders")
 
 def set_seeds(seed):
