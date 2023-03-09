@@ -62,13 +62,10 @@ def main(args):
     with open(test_dl_path, "wb") as fp:
         pickle.dump(val_loader, fp)
 
-    # quantiles = [.1, .2, .3, .4, .5, .6, .7, .8, .9, .95]
-    # quantiles = [.2, .4, .5, .6, .8]
-    
     future_input_dim=len(train_loader.dataset.calendar_features)
-    input_features_dim = len(list(train_loader.dataset.dict_features.values())[0].columns) if list(train_loader.dataset.dict_features.values())[0] is not None else 0
+    feats = list(train_loader.dataset.dict_features.values())[0]
+    input_features_dim = len(feats.columns) if feats is not None else 0
     data_dim = 1 + future_input_dim + input_features_dim
-    
     
     model = ForecasterQR(
         future_input_dim=future_input_dim,
@@ -86,15 +83,14 @@ def main(args):
     )
 
     # model checkpoint callback
-    NAME_ARG = f'his{args.max_sequence_len}_for{args.forcast_horizons}_h{args.encoder_hidden_dim}_d{args.decoder_context_dim}_sa{args.dataset_num_samples}_lr{args.learning_rate}_ba{args.batch_size}_ep{args.epochs}'
+    name = f'his{args.max_sequence_len}_for{args.forcast_horizons}_h{args.encoder_hidden_dim}_d{args.decoder_context_dim}_sa{args.dataset_num_samples}_lr{args.learning_rate}_ba{args.batch_size}_ep{args.epochs}'
     checkpoint_cb = pl.callbacks.ModelCheckpoint(
-        dirpath=os.path.join(TRAINED_MODEL_PATH, f'{NAME_EXP}',f'{NAME_ARG}'),
+        dirpath=os.path.join(TRAINED_MODEL_PATH, NAME_EXP, name),
         monitor="val_loss",
         filename="model-{epoch:02d}-{val_loss:.2f}",
 
     )
-    logger = pl.loggers.tensorboard.TensorBoardLogger(save_dir = LOSS_PATH,name = NAME_EXP, \
-                                                      version = NAME_ARG )
+    logger = pl.loggers.tensorboard.TensorBoardLogger(save_dir=LOSS_PATH, name=NAME_EXP, version=name)
     trainer = pl.Trainer(
         gpus=args.gpus,
         max_epochs=args.epochs,
