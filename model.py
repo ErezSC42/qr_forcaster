@@ -3,10 +3,13 @@ from typing import List
 import pytorch_lightning as pl
 import torch
 from torch import nn
+import os
 
 from Metrics.Losses import QuantileLoss
-
-
+import pandas as pd
+from Metrics.Losses import get_calibration, get_sharpnesses
+from collections import defaultdict
+import numpy as np
 class Encoder(pl.LightningModule):
     '''
     Encoder module for timeseries. creates encoded representation of input sequence using LSTM
@@ -106,8 +109,10 @@ class ForecasterQR(pl.LightningModule):
         self.save_hyperparameters()
         self.metrics = {
             "train_loss": [],
-            "val_loss": []
-        }
+            "val_loss": [],
+            'train_sharpness':defaultdict(list),
+            'val_sharpness':defaultdict(list),
+            }
         self.encoder = Encoder(
             data_dim=data_dim,
             hidden_dim=encoder_hidden_dim,
@@ -173,6 +178,35 @@ class ForecasterQR(pl.LightningModule):
         return x_tensor
 
 
+
+    def publish_sharpness(self,total_loss,losses,y, pred, asset_names, type_training='train', weighted_interval=False):
+        sharpness_score_weighted_by_assets={}
+        for asset in set(asset_names):
+            index_asset=np.where(np.array(asset_names)==asset)[0]
+            y_by_asset = y[index_asset]
+            pred_by_asset = pred[index_asset]
+            sharpness_by_quantile_by_asset, sharpness_score_weighted_by_asset = get_sharpnesses(y_by_asset, pred_by_asset, self.quantiles, weighted=weighted_interval)
+            sharpness_score_weighted_by_assets[asset]=sharpness_score_weighted_by_asset
+            self.logger.experiment.add_scalars(f'{type_training}_interval_score', {asset:sharpness_score_weighted_by_asset}, global_step=self.global_step)
+        return sharpness_score_weighted_by_assets
+    
+    def publish_metrics(self,total_loss,losses,y, pred, asset_names, type_training='train', weighted_interval=False):
+        self.log(f'{type_training}_loss', total_loss, on_step=False, on_epoch=True)
+        per_asset = {asset: loss for asset, loss in zip(asset_names, losses)}
+        self.logger.experiment.add_scalars(f'{type_training}_loss_per_asset', per_asset, global_step=self.global_step)
+        
+        callibration_by_qt = defaultdict(list)
+        for horizon in range(self.horizons):
+             callibration_by_horizon=get_calibration(true_value=y[:,horizon],preds=pred[:, horizon, :], quantiles_name=self.quantiles , device=self.loss.device)
+             for qt, callib in callibration_by_horizon.items():
+                 callibration_by_qt[qt].append(callib)
+        callibration_by_qt = {qt : torch.mean(torch.stack(callib)) for qt, callib in callibration_by_qt.items()}
+        self.logger.experiment.add_scalars(f'{type_training}_calibration_by_qt', callibration_by_qt, global_step=self.global_step)
+        sharpness_score_weighted_by_asset=self.publish_sharpness(total_loss,losses,y, pred, asset_names, type_training='train', weighted_interval=False)
+        self.metrics[f"{type_training}_loss"].append(total_loss.item())
+        for asset, sharpness_score in sharpness_score_weighted_by_asset.items():
+            self.metrics[f"{type_training}_sharpness"][asset].append(sharpness_score.item())
+
     def training_step(self, train_batch, batch_idx):
         (y_tensor, x_calendar_past, x_features_past, x_calendar_future), y, asset_names = train_batch
         if self.sequence_forking:
@@ -184,12 +218,8 @@ class ForecasterQR(pl.LightningModule):
         x_tensor = self.get_x_tensor(x_features_past, x_calendar_past)
         
         pred = self(y_tensor, x_tensor, x_calendar_future)
-        
         total_loss, losses = self.loss(pred, y)
-        self.metrics["train_loss"].append(total_loss.item())
-        self.log('train_loss', total_loss, on_step=False, on_epoch=True)
-        per_asset = {asset: loss for asset, loss in zip(asset_names, losses)}
-        self.logger.experiment.add_scalars('train_loss_per_asset', per_asset, global_step=self.global_step)
+        self.publish_metrics(total_loss, losses,y, pred,asset_names,  type_training='train')
         return total_loss
     
 
@@ -199,11 +229,8 @@ class ForecasterQR(pl.LightningModule):
         
         pred = self(y_tensor, x_tensor, x_calendar_future)
         total_loss, losses = self.loss(pred, y)
-        self.metrics["val_loss"].append(total_loss.item())
-        self.log('val_loss', total_loss, on_step=False, on_epoch=True)
         self.log('learning_rate', self.optim.param_groups[0]["lr"], on_step=False, on_epoch=True)
-        per_asset = {asset: loss for asset, loss in zip(asset_names, losses)}
-        self.logger.experiment.add_scalars('val_loss_per_asset', per_asset, global_step=self.global_step)
+        self.publish_metrics(total_loss, losses,y, pred,asset_names,  type_training='val')
 
     def on_validation_end(self) -> None:
         train_loss = torch.mean(torch.Tensor(self.metrics["train_loss"])).item()
@@ -214,6 +241,7 @@ class ForecasterQR(pl.LightningModule):
             "train_loss": train_loss,
             "default": val_loss
         })
+        torch.save(self.metrics, os.path.join(self.trainer.checkpoint_callback.dirpath, 'extra_metrics.pt'))
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.init_learning_rate, weight_decay=self.init_weight_decay)

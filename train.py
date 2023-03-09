@@ -26,6 +26,10 @@ SPLIT_DF = True
 # TRAINED_MODEL_PATH = os.path.join("trained_models")
 # DATALOADERS_PATH = os.path.join("dataloaders")
 
+
+# TRAINED_MODEL_PATH = os.path.join("trained_models")
+# DATALOADERS_PATH = os.path.join("dataloaders")
+
 def set_seeds(seed):
     torch.manual_seed(seed)
     random.seed(seed)
