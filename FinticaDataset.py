@@ -135,6 +135,6 @@ class FinticaDataset(Dataset):
 
     def create_calender_features(self):
         self.raw_data["yearly_cycle"] = np.sin(2 * np.pi * self.raw_data.index.dayofyear / 366)
-        self.raw_data["monthly_cycle"] = np.sin(2 * np.pi * self.raw_data.index.isocalendar().week % 4 / 3)
+        self.raw_data["monthly_cycle"] = np.sin(2 * np.pi * self.raw_data.index.isocalendar().week % 5 / 4)
         self.raw_data["weekly_cycle"] = np.sin(2 * np.pi * self.raw_data.index.dayofweek / 7)
         self.calendar_features = ["yearly_cycle", "monthly_cycle", "weekly_cycle"]
