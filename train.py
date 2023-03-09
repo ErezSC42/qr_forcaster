@@ -17,12 +17,13 @@ from DatasetHandler import DatasetHandler
 df_name = "raw_df"
 NAME_EXP = f'{df_name}_nosplit'
 #df_name = 'df_with_feat'
-data_path = Path("/home/villqrd/Downloads/heston/datasets/raw/")
+data_path = Path(f"/home/roxane/fintica/code/qr_forcaster/{df_name}")
 TRAINED_MODEL_PATH = Path("trained_models")
 DATALOADERS_PATH = Path("dataloaders")
 LOSS_PATH = Path("lightning_losses")
-SPLIT_DF = False
+SPLIT_DF = True
 
+# TRAINED_MODEL_PATH = os.path.join("trained_models")
 # DATALOADERS_PATH = os.path.join("dataloaders")
 
 def set_seeds(seed):
